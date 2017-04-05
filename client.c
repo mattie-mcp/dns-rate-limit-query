@@ -13,18 +13,19 @@
 #include <sys/time.h>
 
 struct DNS_HEADER{
-    unsigned short id :16;          // identification number
+    unsigned short id;          // identification number
 
-    unsigned char aa :1;        // authoritative answer
-    unsigned char tc :1;        // truncated msg
     unsigned char rd :1;        // recursion desired
-    unsigned char ra :1;        // 
-    unsigned char z :3;        // query/response flag
-
+    unsigned char tc :1;        // truncated msg
+    unsigned char aa :1;        // authoritative answer
+    unsigned char opcode :4;    // op code
     unsigned char qr :1;        // query/response flag
-    unsigned char opcode :4;    // purpose of msg
 
     unsigned char rcode :4;     // r code
+    unsigned char cd :1;        
+    unsigned char ad :1;
+    unsigned char z :1;
+    unsigned char ra :1;
 
     unsigned short qd_count :16;     // number of question entries
     unsigned short an_count :16;   // number of answer entries
@@ -34,16 +35,23 @@ struct DNS_HEADER{
 
 int truncated_count;
 int qtyreceived_count;
+typedef enum { false, true } boolean;
+boolean debug;
 
 void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, int alen){
 	if (status == ARES_SUCCESS){
         struct DNS_HEADER *dns_hdr = (struct DNS_HEADER*) abuf;
         qtyreceived_count++;
-	//	 printf("success, packet is %i bytes\n", alen);
-         printf("id num:        0x%X\n", dns_hdr->id);
-         printf("op code:       0x%X\n", dns_hdr->opcode);
-         printf("authoritative: 0x%X\n", dns_hdr->aa);
-		 printf("truncated response : %d\n", dns_hdr->tc);
+        if (debug == true){
+        	printf("success, packet is %i bytes\n", alen);
+            printf("id num:                0x%X\n", dns_hdr->id);
+            printf("op code:               %d\n", dns_hdr->opcode);
+            printf("authoritative:         %d\n", dns_hdr->aa);
+            printf("recursion desired:     %d\n", dns_hdr->rd);
+            printf("recursion available:   %d\n", dns_hdr->ra);
+            printf("query/response flag:   %d\n", dns_hdr->qr);
+		    printf("truncated response :   %d\n", dns_hdr->tc);
+        }
         if (dns_hdr->tc == 1){
       //      printf("truncated reponse\n");
             //printf("id num: %d\n", dns_hdr->id);
@@ -79,10 +87,13 @@ static void wait_ares(ares_channel channel)
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2){
-		printf("Usage: client packets_to_send\n");
+    debug = false;
+    if (argc < 2){
+		printf("Usage: client packets_to_send debug_mode[optional]\n");
 		exit(1);
 	}
+    else if (argc == 3 && argv[2] == "true")
+        debug = true;
 
     ares_channel channel;
     struct ares_options options;
