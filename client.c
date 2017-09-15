@@ -35,6 +35,7 @@ struct DNS_HEADER{
 
 int truncated_count;
 int qtyreceived_count;
+int qtyfailed_count;
 typedef enum { false, true } boolean;
 boolean debug;
 
@@ -50,8 +51,8 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
             printf("recursion desired:     %d\n", dns_hdr->rd);
             printf("recursion available:   %d\n", dns_hdr->ra);
             printf("query/response flag:   %d\n", dns_hdr->qr);
-		    printf("truncated response :   %d\n", dns_hdr->tc);
-        }
+            printf("truncated response :   %d\n", dns_hdr->tc);
+      }
         if (dns_hdr->tc == 1){
       //      printf("truncated reponse\n");
             //printf("id num: %d\n", dns_hdr->id);
@@ -59,22 +60,27 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
         }
         
 	}
-	else
-		printf("lookup failed: %d\n", status);
+	else{
+        //struct DNS_HEADER *dns_hdr = (struct DNS_HEADER*) abuf;
+        qtyfailed_count++;
+//		printf("lookup failed: %d\n", status);
+        //printf("truncated response :   %d\n", dns_hdr->tc);
+    }
 }
 
 static void wait_ares(ares_channel channel)
 {
-    int timeout = 5;
+    int timeout = 5000;
+    int count = 0;
     for(;;){
         struct timeval *tvp, tv, *max_t;
         fd_set read_fds, write_fds;
         int nfds;
 
         max_t->tv_usec = (suseconds_t) timeout;
-       
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
+        
         nfds = ares_fds(channel, &read_fds, &write_fds);
         if(nfds == 0){
             break;
@@ -88,16 +94,19 @@ static void wait_ares(ares_channel channel)
 int main(int argc, char *argv[])
 {
     debug = false;
+    char *log_file;
     if (argc < 2){
-		printf("Usage: client packets_to_send debug_mode[optional]\n");
+		printf("Usage: client packets_to_send debug_mode[optional] file_output[optional]\n");
 		exit(1);
 	}
-    else if (argc == 3 && argv[2] == "true")
+    if (argc == 3 && argv[2] == "true")
         debug = true;
+    if (argc == 4 && argv[3])
+        log_file = argv[3];
 
     ares_channel channel;
     struct ares_options options;
-    int optmask = 0;
+    int optmask = ARES_OPT_FLAGS | ARES_OPT_TIMEOUT | ARES_OPT_TRIES;
 	int status, i;
     int packetsToSend = atoi(argv[1]);
 
@@ -106,8 +115,10 @@ int main(int argc, char *argv[])
         printf("ares_library_init: %s\n", ares_strerror(status));
         return 1;
     }
-    options.timeout = 1000; // timeout in ms
-    options.tries = 0;  //number of retries to send
+
+    /* Should be sending only DNS packets with no extra processing */
+    options.timeout = 10; // timeout in ms
+    options.tries = 1;  //number of retries to send
     options.flags = ARES_FLAG_IGNTC;
 
     status = ares_init_options(&channel, &options, optmask);
@@ -116,26 +127,33 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    printf("ares initialized, sending %d packets\n", packetsToSend);
+    printf("sending %d packets...\n", packetsToSend);
 	unsigned char **qbuf = malloc(sizeof(unsigned char **));
 	int *buflen = malloc(sizeof( int*));
+    void *arg;
 //    clock_t start, end;
 //    start = clock();
 	for ( i=0; i<packetsToSend; i++ ){
         if ( i % 500 == 0)
-            printf("message count: %d\n", i);
-        // printf("creating query...\n"); // ns_c_in = 1 (internet); ns_t_a = 1 (host addr)
+         //printf("creating query...\n"); // ns_c_in = 1 (internet); ns_t_a = 1 (host addr)
 	    ares_create_query("example.local", ns_c_in, ns_t_a, i, 0, qbuf, buflen, 0);
+//	    ares_query(channel, "example.local", ns_c_in, ns_t_a, query_callback, arg);
 		ares_send(channel, *qbuf, *buflen, query_callback, NULL);
-//		wait_ares(channel);
 	}
 //    end = (int) (clock()-start) / CLOCKS_PER_SEC;
-    printf("sent %d packets\n", packetsToSend);	
 
     wait_ares(channel);
 
-    printf("received %d packets     | %d were truncated\n", qtyreceived_count, truncated_count);
+    printf("received %d responses     | %d were truncated   | %d failed lookups\n", qtyreceived_count, truncated_count, qtyfailed_count);
 
+    if (log_file) {
+        //open file and print
+        printf("printing to file... %s\n", log_file);
+        FILE *f = fopen(log_file, "w+");
+        fprintf(f, "responses,truncated,failed\n");
+        fprintf(f, "%d,%d,%d", qtyreceived_count, truncated_count, qtyfailed_count);
+        fclose(f);
+    }
     ares_destroy(channel);
     ares_library_cleanup();
     return 0;
