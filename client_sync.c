@@ -189,24 +189,23 @@ int main(int argc, char *argv[])
 
         if ( !record.dns_name || strcmp( record.dns_name, " ") ) {
             // TODO: Find dns server name
+            ares_create_query(record.domain_name, ns_c_in, ns_t_ns, q, 0, qbuf, buflen, 0);
+    	    ares_send(channel, *qbuf, *buflen, query_callback, NULL);
+            // will update record
+            wait_ares(timeout, channel);
         }
         
         int status = ares_init_options(&channel, &options, optmask);
         struct ares_addr_node server;
         server.family = AF_INET;
         server.next = NULL;
+        server.addr.addr4 = gethostbyname(record.dns_name);
 
         if ( status != ARES_SUCCESS ) {
             printf("could not initialize channel\n");
             return 1;
         }
 
-        ares_create_query(record.domain_name, ns_c_in, ns_t_ns, q, 0, qbuf, buflen, 0);
-	    ares_send(channel, *qbuf, *buflen, query_callback, NULL);
-        wait_ares(timeout, channel);
-
-        //update dns server address
-        //server.addr.addr4;   // TODO
         ares_set_servers(channel, &server);
 
     	for ( i=0; i<packetsToSend; i++ ){
