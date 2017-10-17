@@ -49,8 +49,7 @@ int packet_id=0;
 
 void setup_c_ares();
 void read_file(char *file_name);
-void get_dns(char *name, ares_channel channel);
-//void get_dns_addr(char *name, ares_channel channel);
+void get_dns(ares_channel channel, struct lookup_record *record);
 void send_packet(ares_channel channel, struct lookup_record *record);
 /**
  * Function: query_callback
@@ -76,6 +75,33 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
 	else {
         printf("%s\n", ares_strerror(status));
         record->qty_failed++;
+    }
+}
+
+/**
+ * Function: dnslookup_callback
+ * Callback after dns lookup query is sent
+ *
+ * arg: itself
+ * status: ares defined response status
+ * timeouts: how many times query timed out
+ * abuf: Result buffer, dns header. Failed query, abuf is null
+ * alen: Length of abuf
+ */
+void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf, int alen){
+    struct lookup_record *record = (struct lookup_record*) arg;
+
+    if (status == ARES_SUCCESS) {
+        struct hostent  **host;
+        ares_parse_ns_reply(abuf, alen, host);
+        record->dns_name = host->h_name;
+        printf("dns lookup callback: name, %s\n", record->dns_name);
+        
+        struct in_addr host_addr;
+        memcpy(&host_addr.s_addr, host->h_addr,4);
+        printf("dns host addr found: %s\n", inet_ntoa(host_addr));
+
+        ares_free_hostent(host);
     }
 }
 
@@ -150,8 +176,14 @@ int main(int argc, char *argv[]) {
         ares_channel channel;
 
         if ( !record.dns_name || strcmp( record.dns_name, " ") ) {
-            // TODO: Find dns server name
-            //get_dns();
+            get_dns(channel, &record);
+            wait_ares(options.timeout, channel);
+        }
+
+        // make sure get_dns was a success
+        if (record.dns_name == null || strcmp(record.dns_name, "") == 0) {
+            printf("could not lookup dns server, skipping\n");
+            continue;
         }
         
         struct ares_addr_node server;
@@ -159,13 +191,14 @@ int main(int argc, char *argv[]) {
         server.next = NULL;
         
         printf("looking up %s\n", record.dns_name);
+
         struct hostent *host_record = gethostbyname(record.dns_name);   //TODO error checking
         if ( host_record == NULL ) {
             printf("could not find addr of %s, skipping\n", record.dns_name);
             continue;
         }
         struct in_addr host_addr;
-        memcpy(&host_addr.s_addr,host_record->h_addr,4);
+        memcpy(&host_addr.s_addr, host_record->h_addr,4);
         server.addr.addr4 = host_addr;
         printf("dns host addr found: %s\n", inet_ntoa(host_addr));
 
@@ -210,13 +243,12 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void get_dns(char *name, ares_channel channel) {
+void get_dns(ares_channel channel, struct lookup_record *record) {
     unsigned char **qbuf = malloc(sizeof(unsigned char **));
     int *buflen = malloc(sizeof( int*));
     
-    ares_create_query(name, ns_c_in, ns_t_ns, 0, 0, qbuf, buflen, 0);
-    ares_send(channel, *qbuf, *buflen, query_callback, NULL);
-    wait_ares(options.timeout, channel);
+    ares_create_query(record->domain_name, ns_c_in, ns_t_ns, 0, 0, qbuf, buflen, 0);
+    ares_send(channel, *qbuf, *buflen, dnslookup_callback, record);
     return;
 }
 
