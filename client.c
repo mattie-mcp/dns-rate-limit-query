@@ -89,19 +89,21 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
  * alen: Length of abuf
  */
 void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf, int alen){
+    printf("casting to struct\n");
     struct lookup_record *record = (struct lookup_record*) arg;
 
+    printf("we got a response!\n");
     if (status == ARES_SUCCESS) {
         struct hostent  **host;
-        ares_parse_ns_reply(abuf, alen, host);
-        record->dns_name = host->h_name;
-        printf("dns lookup callback: name, %s\n", record->dns_name);
-        
-        struct in_addr host_addr;
-        memcpy(&host_addr.s_addr, host->h_addr,4);
-        printf("dns host addr found: %s\n", inet_ntoa(host_addr));
+        printf("parsing reply\n");
+        int status;
 
-        ares_free_hostent(host);
+        if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS) {
+            printf("parsing reply failed %s\n", ares_strerror(status));
+        }
+        printf("dns lookup callback: name, %s\n", (*host)->h_aliases[0]);
+        
+        record->dns_name = (*host)->h_aliases[0];
     }
 }
 
@@ -164,7 +166,7 @@ int main(int argc, char *argv[]) {
     int optmask = ARES_OPT_FLAGS | ARES_OPT_TIMEOUT | ARES_OPT_TRIES;
 
     /** Read in file and save */
-    read_file("datasample.txt");
+    read_file("test.txt");
    // return 0;
    
     /** Send queries */
@@ -175,13 +177,22 @@ int main(int argc, char *argv[]) {
         printf("Testing %s, %s\n", record.dns_name, record.domain_name);
         ares_channel channel;
 
+        int status = ares_init_options(&channel, &options, optmask);
+        if ( status != ARES_SUCCESS ) {
+            printf("could not initialize channel\n");
+            return 1;
+        }
+
         if ( !record.dns_name || strcmp( record.dns_name, " ") ) {
+            printf("does not have dns name, looking up\n");
             get_dns(channel, &record);
+            printf("After get_dns!\n");fflush(stdout);
             wait_ares(options.timeout, channel);
+            printf("we looked it up...\n");
         }
 
         // make sure get_dns was a success
-        if (record.dns_name == null || strcmp(record.dns_name, "") == 0) {
+        if (record.dns_name == NULL || strcmp(record.dns_name, "") == 0) {
             printf("could not lookup dns server, skipping\n");
             continue;
         }
@@ -201,12 +212,6 @@ int main(int argc, char *argv[]) {
         memcpy(&host_addr.s_addr, host_record->h_addr,4);
         server.addr.addr4 = host_addr;
         printf("dns host addr found: %s\n", inet_ntoa(host_addr));
-
-        int status = ares_init_options(&channel, &options, optmask);
-        if ( status != ARES_SUCCESS ) {
-            printf("could not initialize channel\n");
-            return 1;
-        }
 
         int val;
         if ( (val = ares_set_servers(channel, &server)) != ARES_SUCCESS ) {
@@ -235,6 +240,7 @@ int main(int argc, char *argv[]) {
 //        FILE *f = fopen(log_file, "w+");
 //        fprintf(f, "responses,truncated,failed\n");
 //        fprintf(f, "%d,%d,%d", qtyreceived_count, truncated_count, qtyfailed_count);
+//        qty sent, server ip, domain name, dns name, etc.
 //        fclose(f);
 //    }
 
@@ -246,8 +252,13 @@ int main(int argc, char *argv[]) {
 void get_dns(ares_channel channel, struct lookup_record *record) {
     unsigned char **qbuf = malloc(sizeof(unsigned char **));
     int *buflen = malloc(sizeof( int*));
-    
-    ares_create_query(record->domain_name, ns_c_in, ns_t_ns, 0, 0, qbuf, buflen, 0);
+    int status;
+
+    printf("creating query... sending to domain name %s \n", record->domain_name);
+    if ((status =ares_create_query(record->domain_name, ns_c_in, ns_t_ns, ++packet_id, 1, qbuf, buflen, 0)) != ARES_SUCCESS) {
+        printf("error creating query: %s\n", ares_strerror(status));
+    }
+    printf("sending query...\n");
     ares_send(channel, *qbuf, *buflen, dnslookup_callback, record);
     return;
 }
