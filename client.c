@@ -74,8 +74,10 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
         }
 	}
 	else {
-        if (record->qty_failed == 0 && log_filep != NULL)
-            fprintf(log_filep, "[error] querying dns for %s: %s\n", record->domain_name, ares_strerror(status));
+ //       if (record->qty_failed == 0 && log_filep != NULL &&record->qty_received == 0) {
+ //          fprintf(log_filep, "[error] querying dns for %s: %s\n", record->domain_name, ares_strerror(status));
+ //           fflush(log_filep);
+ //       }
         record->qty_failed++;
     }
 }
@@ -99,6 +101,7 @@ void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf
 
         if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS && log_filep != NULL) {
             fprintf(log_filep, "[error] parsing reply failed %s: %s\n", record->domain_name, ares_strerror(status));
+            fflush(log_filep);
         }
         else {
             record->dns_name = (*host)->h_aliases[0];
@@ -159,13 +162,14 @@ int main(int argc, char *argv[]) {
     setup_c_ares();
 
     /* Should be sending only DNS packets with no extra processing */
-    options.timeout = 5;            // timeout in s
+    options.timeout = 3;            // timeout in s
     options.tries = 1;               //number of retries to send
     options.flags = ARES_FLAG_IGNTC; // can add option ARES_FLAG_NOCHECKRESP to keep refused responses
     /** ares initialization and options */
     int optmask = ARES_OPT_FLAGS | ARES_OPT_TIMEOUT | ARES_OPT_TRIES;
 
     /** Read in file and save */
+    printf("[info] reading in file\n");
     read_file(fileToRead);
     if (log_file) {
         log_filep = fopen(log_file, "w+");
@@ -200,7 +204,7 @@ int main(int argc, char *argv[]) {
 
         // make sure get_dns was a success
         if (record.dns_name == NULL || strcmp(record.dns_name, "") == 0) {
-            fprintf(log_filep, "[info] could not find dns server of %s, skipping\n", record.dns_name);
+            fprintf(log_filep, "[error] could not find dns server of %s, skipping\n", record.dns_name);
             fflush(log_filep);
             continue;
         }
@@ -211,7 +215,7 @@ int main(int argc, char *argv[]) {
         
         struct hostent *host_record = gethostbyname(record.dns_name);
         if ( host_record == NULL ) {
-            fprintf(log_filep, "[info] could not find addr of %s, skipping\n", record.dns_name);
+            fprintf(log_filep, "[error] could not find addr of %s, skipping\n", record.dns_name);
             fflush(log_filep);
             continue;
         }
@@ -275,17 +279,16 @@ void read_file(char *file_name) {
     }
 
     char *tmp = (char *) malloc(sizeof(char)*200);
-    queries = (struct lookup_record **) malloc(sizeof(struct lookup_record)*5000);
+    queries = (struct lookup_record **) malloc(sizeof(struct lookup_record)*101000);
 
     server_count = 0;
-    while ( fgets(tmp, 200, source) ) {
+//    tmp = strtok(tmp, "\n");
+    while ( EOF != fscanf(source,"%s",tmp)){//fgets(tmp, 200, source) ) {
         struct lookup_record *record = (struct lookup_record*) malloc(sizeof(struct lookup_record));
-        tmp = strtok(tmp, "\n");
-        record->domain_name = strsep(&tmp, " ");
-        record->dns_name = strsep(&tmp, " ");
-        //printf("dns_name: %s domain_name: %s\n", record->dns_name, record->domain_name);
+        record->domain_name = tmp;
+        record->dns_name = NULL;
         queries[server_count++] = record;
-        tmp = realloc(tmp,sizeof(char)*200);
+        tmp = (char*) malloc(sizeof(char)*200);
     }
     fclose(source);
 
