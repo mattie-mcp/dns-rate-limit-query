@@ -36,6 +36,7 @@ struct DNS_HEADER{
 struct lookup_record {
     char *domain_name;
     char *dns_name;
+    char *alt_domain_name;
     int qty_received;
     int qty_truncated;
     int qty_failed;
@@ -74,10 +75,6 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
         }
 	}
 	else {
- //       if (record->qty_failed == 0 && log_filep != NULL &&record->qty_received == 0) {
- //          fprintf(log_filep, "[error] querying dns for %s: %s\n", record->domain_name, ares_strerror(status));
- //           fflush(log_filep);
- //       }
         record->qty_failed++;
     }
 }
@@ -100,8 +97,8 @@ void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf
         int status;
 
         if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS && log_filep != NULL) {
-            fprintf(log_filep, "[error] parsing reply failed %s: %s\n", record->domain_name, ares_strerror(status));
-            fflush(log_filep);
+        //    fprintf(log_filep, "[error] parsing reply failed %s: %s\n", record->domain_name, ares_strerror(status));
+        //    fflush(log_filep);
         }
         else {
             record->dns_name = (*host)->h_aliases[0];
@@ -204,9 +201,20 @@ int main(int argc, char *argv[]) {
 
         // make sure get_dns was a success
         if (record.dns_name == NULL || strcmp(record.dns_name, "") == 0) {
-            fprintf(log_filep, "[error] could not find dns server of %s, skipping\n", record.dns_name);
-            fflush(log_filep);
-            continue;
+            // in case it's a subdomain, lookup again
+            char *tmp =  malloc(sizeof(record.domain_name));
+            strcpy(tmp,record.domain_name);
+            strtok(tmp, ".");
+            record.alt_domain_name = strtok(NULL, "");
+            get_dns(channel, &record);
+            wait_ares(options.timeout, channel);
+
+            // if it's still a failure, skip
+            if (record.dns_name == NULL || strcmp(record.dns_name, "") == 0) {
+                fprintf(log_filep, "[error] could not find dns server of %s, skipping\n", record.domain_name);
+                fflush(log_filep);
+                continue;
+          }
         }
         
         struct ares_addr_node server;
@@ -263,8 +271,11 @@ void get_dns(ares_channel channel, struct lookup_record *record) {
     unsigned char **qbuf = malloc(sizeof(unsigned char **));
     int *buflen = malloc(sizeof( int*));
     int status;
+    char *lookup = record->domain_name;
+    if (record->alt_domain_name)
+        lookup = record->alt_domain_name;
 
-    if ((status =ares_create_query(record->domain_name, ns_c_in, ns_t_ns, ++packet_id, 1, qbuf, buflen, 0)) != ARES_SUCCESS) {
+    if ((status =ares_create_query(lookup, ns_c_in, ns_t_ns, ++packet_id, 1, qbuf, buflen, 0)) != ARES_SUCCESS) {
         printf("[error] error creating query: %s\n", ares_strerror(status));
     }
     ares_send(channel, *qbuf, *buflen, dnslookup_callback, record);
@@ -282,11 +293,11 @@ void read_file(char *file_name) {
     queries = (struct lookup_record **) malloc(sizeof(struct lookup_record)*101000);
 
     server_count = 0;
-//    tmp = strtok(tmp, "\n");
-    while ( EOF != fscanf(source,"%s",tmp)){//fgets(tmp, 200, source) ) {
+    while ( EOF != fscanf(source,"%s",tmp)){
         struct lookup_record *record = (struct lookup_record*) malloc(sizeof(struct lookup_record));
         record->domain_name = tmp;
         record->dns_name = NULL;
+        record->alt_domain_name = NULL;
         queries[server_count++] = record;
         tmp = (char*) malloc(sizeof(char)*200);
     }
