@@ -51,6 +51,7 @@ void setup_c_ares();
 void read_file(char *file_name);
 void get_dns(ares_channel channel, struct lookup_record *record);
 void send_packet(ares_channel channel, struct lookup_record *record);
+FILE *log_filep;
 /**
  * Function: query_callback
  * Callback after query is sent
@@ -73,7 +74,8 @@ void query_callback(void* arg, int status, int timeouts, unsigned char *abuf, in
         }
 	}
 	else {
-        printf("%s\n", ares_strerror(status));
+        if (record->qty_failed == 0 && log_filep != NULL)
+            fprintf(log_filep, "[error] querying dns for %s: %s\n", record->domain_name, ares_strerror(status));
         record->qty_failed++;
     }
 }
@@ -95,8 +97,8 @@ void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf
         struct hostent  **host;
         int status;
 
-        if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS) {
-            printf("parsing reply failed %s\n", ares_strerror(status));
+        if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS && log_filep != NULL) {
+            fprintf(log_filep, "[error] parsing reply failed %s: %s\n", record->domain_name, ares_strerror(status));
         }
         else {
             record->dns_name = (*host)->h_aliases[0];
@@ -144,14 +146,15 @@ static void wait_ares(int timeout, ares_channel channel) {
 
 int main(int argc, char *argv[]) {
     char *log_file;
-    if (argc < 2){
-		printf("Usage: client [packets_to_send] [file_output (optional)]\n");
+    if (argc < 3){
+		printf("Usage: client [packets_to_send] [file_to_red] [file_output (optional)]\n");
 		exit(1);
 	}
-    if (argc == 3 && argv[2])
-        log_file = argv[2];
+    if (argc == 4 && argv[3])
+        log_file = argv[3];
 
     int packetsToSend = atoi(argv[1]);
+    char *fileToRead = argv[2];
 
     setup_c_ares();
 
@@ -163,23 +166,30 @@ int main(int argc, char *argv[]) {
     int optmask = ARES_OPT_FLAGS | ARES_OPT_TIMEOUT | ARES_OPT_TRIES;
 
     /** Read in file and save */
-    read_file("test.txt");
+    read_file(fileToRead);
     if (log_file) {
-        FILE *log_filep = fopen(log_file, "w+");
+        log_filep = fopen(log_file, "w+");
+        fprintf(log_filep, "status domain_name dns_name dns_ip queries_sent responses_received responses_truncated responses_failed\n");
     }
-   
+
+    printf("[info] read in file, sending requests...\n");
+    
     /** Send queries */
     int q;
     for ( q=0; q<server_count; q++ ) {
         struct lookup_record record = *queries[q];
 
-        printf("Testing %s, %s\n", record.dns_name, record.domain_name);
+        if ((q % 50) == 0) {
+            printf("[info] on query %d of %d\n", q, server_count);
+        }
+        //printf("Testing %s, %s\n", record.dns_name, record.domain_name);
         ares_channel channel;
 
         int status = ares_init_options(&channel, &options, optmask);
         if ( status != ARES_SUCCESS ) {
-            printf("could not initialize channel\n");
+            printf("[error] could not initialize channel\n");
             fprintf(log_filep, "[error] could not initialize for %s channel, skipping\n", record.dns_name);
+            fflush(log_filep);
             return 1;
         }
 
@@ -191,6 +201,7 @@ int main(int argc, char *argv[]) {
         // make sure get_dns was a success
         if (record.dns_name == NULL || strcmp(record.dns_name, "") == 0) {
             fprintf(log_filep, "[info] could not find dns server of %s, skipping\n", record.dns_name);
+            fflush(log_filep);
             continue;
         }
         
@@ -201,6 +212,7 @@ int main(int argc, char *argv[]) {
         struct hostent *host_record = gethostbyname(record.dns_name);
         if ( host_record == NULL ) {
             fprintf(log_filep, "[info] could not find addr of %s, skipping\n", record.dns_name);
+            fflush(log_filep);
             continue;
         }
         struct in_addr host_addr;
@@ -210,35 +222,36 @@ int main(int argc, char *argv[]) {
         int val;
         if ( (val = ares_set_servers(channel, &server)) != ARES_SUCCESS ) {
             fprintf(log_filep, "[error] Setting server for domain %s: %d\n", record.domain_name, val);
+            fflush(log_filep);
             continue;
         }
 
-        printf("sending packets...\n");
         for ( val=0; val<packetsToSend; val++ )
             send_packet(channel, &record);
 
-        printf("waiting\n");
         wait_ares(options.timeout, channel);
 
         if (log_file) {
-            fprintf(log_filep, "[info] %s %s %s %d %d %d %d", record.domain_name,
+            fprintf(log_filep, "[info] %s %s %s %d %d %d %d\n", record.domain_name,
                                                     record.dns_name,
                                                     inet_ntoa(host_addr),
                                                     packetsToSend,
                                                     record.qty_received, 
                                                     record.qty_truncated, 
                                                     record.qty_failed);
+            fflush(log_filep);
         }
         
         ares_destroy(channel);
     }
-    printf("done");
 
+   fflush(log_filep);
     /** Clean up */
    if (log_file) {
        fclose(log_filep);
    }
     ares_library_cleanup();
+    printf("done\n\n");
     return 0;
 }
 
@@ -248,7 +261,7 @@ void get_dns(ares_channel channel, struct lookup_record *record) {
     int status;
 
     if ((status =ares_create_query(record->domain_name, ns_c_in, ns_t_ns, ++packet_id, 1, qbuf, buflen, 0)) != ARES_SUCCESS) {
-        printf("error creating query: %s\n", ares_strerror(status));
+        printf("[error] error creating query: %s\n", ares_strerror(status));
     }
     ares_send(channel, *qbuf, *buflen, dnslookup_callback, record);
     return;
@@ -257,7 +270,7 @@ void get_dns(ares_channel channel, struct lookup_record *record) {
 void read_file(char *file_name) {
     FILE *source = fopen(file_name, "r");
     if (!source || source == NULL) {
-        printf("could not open file");
+        printf("[error] could not open file");
         exit(1);
     }
 
@@ -270,7 +283,7 @@ void read_file(char *file_name) {
         tmp = strtok(tmp, "\n");
         record->domain_name = strsep(&tmp, " ");
         record->dns_name = strsep(&tmp, " ");
-        printf("dns_name: %s domain_name: %s\n", record->dns_name, record->domain_name);
+        //printf("dns_name: %s domain_name: %s\n", record->dns_name, record->domain_name);
         queries[server_count++] = record;
         tmp = realloc(tmp,sizeof(char)*200);
     }
@@ -281,7 +294,7 @@ void read_file(char *file_name) {
 void setup_c_ares() {
     int status = ares_library_init(ARES_LIB_INIT_ALL);
     if (status != ARES_SUCCESS){
-        printf("ares_library_init: %s\n", ares_strerror(status));
+        printf("[error] ares_library_init: %s\n", ares_strerror(status));
         exit(1);
     }
 }
@@ -292,7 +305,7 @@ void send_packet(ares_channel channel, struct lookup_record *record) {
     
     int err;
     if ( (err = ares_create_query(record->domain_name, ns_c_in, ns_t_a, ++packet_id, 0, qbuf, buflen, 0)) != ARES_SUCCESS ) {
-        printf("error creating query %d\n", err);
+        printf("[error] error creating query %d\n", err);
     }
     ares_send(channel, *qbuf, *buflen, query_callback, record);
 }
