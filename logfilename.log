@@ -1,0 +1,24 @@
+= Start
+@ /lib64/libcares.so.2:(ares_init_options+0x7a)[0x7f28b3a03e5a] + 0x2a0ebc0 0x121f0
+@ /lib64/libc.so.6:[0x7f28b36a854d] + 0x2a20dc0 0x238
+@ /lib64/libcares.so.2:[0x7f28b3a00c06] + 0x2a21000 0x80
+@ /lib64/libcares.so.2:(ares_init_options+0xeb3)[0x7f28b3a04c93] + 0x2a21090 0x78
+@ /lib64/libc.so.6:(fclose+0x155)[0x7f28b36a7bd5] - 0x2a20dc0
+@ /lib64/libc.so.6:[0x7f28b36a854d] + 0x2a20dc0 0x238
+@ /lib64/libc.so.6:(__strdup+0x1a)[0x7f28b36c388a] + 0x2a21110 0x3
+@ /lib64/libc.so.6:(fclose+0x155)[0x7f28b36a7bd5] - 0x2a20dc0
+@ /lib64/libcares.so.2:(ares_init_options+0x831)[0x7f28b3a04611] - 0x2a21000
+@ /lib64/libcares.so.2:(ares_init_options+0xb4a)[0x7f28b3a0492a] + 0x2a20dc0 0x40
+@ /lib64/libcares.so.2:(ares_init_options+0xd89)[0x7f28b3a04b69] + 0x2a20e10 0x8
+@ /lib64/libc.so.6:(__strdup+0x1a)[0x7f28b36c388a] + 0x2a20e30 0xc
+@ /lib64/libcares.so.2:(ares_init_options+0x55a)[0x7f28b3a0433a] - 0x2a20dc0
+@ /lib64/libcares.so.2:(ares_init_options+0x911)[0x7f28b3a046f1] + 0x2a20e50 0x1f
+@ /lib64/libc.so.6:[0x7f28b36a854d] + 0x2a21130 0x238
+@ /lib64/libc.so.6:(fclose+0x155)[0x7f28b36a7bd5] - 0x2a21130
+@ /lib64/libcares.so.2:(ares_init_options+0xa4c)[0x7f28b3a0482c] - 0x2a20e50
+@ ./client:[0x40172f] + 0x2a20e80 0x8
+@ ./client:[0x40173d] + 0x2a20ea0 0x8
+@ /lib64/libcares.so.2:(ares_create_query+0xcf)[0x7f28b3a056df] + 0x2a20e50 0x1d
+@ /lib64/libcares.so.2:(ares_send+0x78)[0x7f28b3a0aaf8] + 0x2a20ec0 0xc8
+@ /lib64/libcares.so.2:(ares_send+0x93)[0x7f28b3a0ab13] + 0x2a20f90 0x1f
+@ /lib64/libcares.so.2:(ares_send+0xb6)[0x7f

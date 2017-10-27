@@ -1,0 +1,7 @@
+status domain_name dns_name dns_ip queries_sent responses_received responses_truncated responses_failed
+[info] youtube.com ns2.google.com 216.239.34.10 10 10 0 0
+[info] microsoft.com ns1.msft.net 208.84.0.53 10 10 0 0
+[info] wordpress.org ns4.wordpress.org 192.0.75.10 10 10 0 0
+[info] pinterest.com ns5.pinterest.com 198.51.44.9 10 10 0 0
+[info] drive.google.com ns4.google.com 216.239.38.10 10 10 0 0
+[info] europa.eu ns1bru.europa.eu 147.67.250.2 10 10 0 0
