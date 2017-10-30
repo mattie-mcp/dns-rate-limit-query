@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Microsoft Developer Studio Workspace File, Format Version 6.00
 # WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
 
@@ -72,3 +73,79 @@ Package=<3>
 
 ###############################################################################
 
+=======
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "cares"=".\cares\vc6cares.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "acountry"=".\acountry\vc6acountry.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name cares
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "adig"=".\adig\vc6adig.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name cares
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "ahost"=".\ahost\vc6ahost.dsp" - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name cares
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+
+>>>>>>> bc3dfc5a6f3ab55ab7fa70ba9ed4aaa09f492da7
