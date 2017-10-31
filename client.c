@@ -93,17 +93,18 @@ void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf
     struct lookup_record *record = (struct lookup_record*) arg;
 
     if (status == ARES_SUCCESS) {
-        struct hostent  **host = malloc(sizeof(struct hostent));
+        struct hostent  *host;// = malloc(sizeof(struct hostent));
         int status;
 
-        if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS && log_filep != NULL) {
+        if ((status = ares_parse_ns_reply(abuf, alen, &host)) != ARES_SUCCESS && log_filep != NULL) {
         //    fprintf(log_filep, "[error] parsing reply failed %s: %s\n", record->domain_name, ares_strerror(status));
         //    fflush(log_filep);
         }
         else {
-            record->dns_name = (*host)->h_aliases[0];
+            record->dns_name = (char*) malloc(strlen(host->h_aliases[0])+1);
+            strcpy(record->dns_name, host->h_aliases[0]);
+            ares_free_hostent(host);
         }
-        free(host);
     }
 }
 
@@ -222,7 +223,8 @@ int main(int argc, char *argv[]) {
         struct ares_addr_node server;
         server.family = AF_INET;
         server.next = NULL;
-        
+       
+        printf("host name: %s\n", record.dns_name);
         struct hostent *host_record = gethostbyname(record.dns_name);
         if ( host_record == NULL ) {
             fprintf(log_filep, "[error] could not find addr of %s, skipping\n", record.dns_name);
