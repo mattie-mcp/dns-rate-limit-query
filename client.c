@@ -93,7 +93,7 @@ void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf
     struct lookup_record *record = (struct lookup_record*) arg;
 
     if (status == ARES_SUCCESS) {
-        struct hostent  **host;
+        struct hostent  **host = malloc(sizeof(struct hostent));
         int status;
 
         if ((status = ares_parse_ns_reply(abuf, alen, host)) != ARES_SUCCESS && log_filep != NULL) {
@@ -103,6 +103,7 @@ void dnslookup_callback(void* arg, int status, int timeouts, unsigned char *abuf
         else {
             record->dns_name = (*host)->h_aliases[0];
         }
+        free(host);
     }
 }
 
