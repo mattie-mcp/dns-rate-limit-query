@@ -130,6 +130,7 @@ static void wait_ares(int timeout, ares_channel channel) {
         // Gets file descriptors to process
         int nfds = ares_fds(channel, &read_fds, &write_fds);
         if(nfds == 0){
+            free(max_t);
             break;
         }
 
@@ -279,6 +280,8 @@ void get_dns(ares_channel channel, struct lookup_record *record) {
         printf("[error] error creating query: %s\n", ares_strerror(status));
     }
     ares_send(channel, *qbuf, *buflen, dnslookup_callback, record);
+    free(buflen);
+    free(qbuf);
     return;
 }
 
@@ -302,7 +305,7 @@ void read_file(char *file_name) {
         tmp = (char*) malloc(sizeof(char)*200);
     }
     fclose(source);
-
+    free(tmp);
 }
 
 void setup_c_ares() {
@@ -322,4 +325,6 @@ void send_packet(ares_channel channel, struct lookup_record *record) {
         printf("[error] error creating query %d\n", err);
     }
     ares_send(channel, *qbuf, *buflen, query_callback, record);
+    free(buflen);
+    free(qbuf);
 }
