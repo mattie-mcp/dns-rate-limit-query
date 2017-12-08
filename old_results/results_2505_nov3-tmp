@@ -1,0 +1,2 @@
+status domain_name dns_name dns_ip queries_sent responses_received responses_truncated responses_failed
+[info] microsoft.com ns4.msft.net 208.76.45.53 2505 977 0 1528

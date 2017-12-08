@@ -1,2 +1,0 @@
-status domain_name dns_name dns_ip queries_sent responses_received responses_truncated responses_failed
-[info] doxygen.org dns2.name-services.com 162.88.60.23 2505 2505 0 0
